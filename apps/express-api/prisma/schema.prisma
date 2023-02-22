@@ -14,23 +14,25 @@ model User {
   id     Int     @id @default(autoincrement())
   name   String
   assets Asset[]
-}
-
-model Asset {
-  id     Int     @id @default(autoincrement())
-  name   String
-  user   User    @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId Int
   values Value[]
 }
 
-model Value {
-  id      Int    @id @default(autoincrement())
-  value   Int
+model Asset {
+  id        Int      @id @default(autoincrement())
+  name      String
   createdAt DateTime @default(now())
-  asset   Asset  @relation(fields: [assetId], references: [id])
-  assetId Int
+  updatedAt DateTime @updatedAt
+  values    Value[]
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
 }
 
+model Value {
+  id        Int      @id @default(autoincrement())
+  value     Int
+  createdAt DateTime @default(now())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int
+  asset     Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   Int
+}

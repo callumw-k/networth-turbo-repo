@@ -1,4 +1,6 @@
-import { Request, Router } from "express";
+import { PrismaClientRustPanicError } from "@prisma/client/runtime/index.js";
+import { Request, Response, Router } from "express";
+import { postAssetDTO } from "express-schema";
 import { prisma } from "../services/prismaClient.js";
 export const assetController = Router();
 
@@ -19,19 +21,26 @@ assetController.post(
     res
   ) => {
     try {
+      const parsedData = postAssetDTO.parse(req.body);
       const createdAsset = await prisma.asset.create({
         data: {
-          name: req.body.name,
-          user: { connect: { id: req.body.user } },
-          values: { create: { value: req.body.value } },
+          name: parsedData.name,
+          values: {
+            create: {
+              value: parsedData.value,
+              user: { connect: { id: parsedData.userId } },
+            },
+          },
+          user: { connect: { id: parsedData.userId } },
         },
       });
       res.send({ status: "sucess", assest: createdAsset });
     } catch (e) {
-      res.status(400).json({
+      res.status(400);
+      res.send({
         status: "error",
         error: "Error updating asset",
-        stack: JSON.stringify(e),
+        message: JSON.parse((e as Error).message),
       });
     }
   }
@@ -39,8 +48,8 @@ assetController.post(
 
 assetController.get("/:assetId", async (req, res) => {
   const { assetId } = req.params;
-  try {
-    const asset = await prisma.asset.findUnique({
+  await prismaErrorWrapper(res, async () => {
+    return await prisma.asset.findUnique({
       where: { id: Number(assetId) },
       include: {
         values: {
@@ -48,26 +57,33 @@ assetController.get("/:assetId", async (req, res) => {
         },
       },
     });
-    res.send(asset);
-  } catch (e) {
-    res.status(400).json({ status: "error", error: "Error retrieving asset" });
-  }
+  });
 });
 
 assetController.put("/:assetId", async (req, res) => {
-  try {
-    const updatedAsset = await prisma.value.create({
-      data: {
-        value: req.body.value,
-        asset: { connect: { id: Number(req.params.assetId) } },
-      },
-    });
-    res.send(updatedAsset);
-  } catch (e) {
-    res.status(400).json({
-      status: "error",
-      error: "Error updating asset",
-      stack: e,
-    });
-  }
+  await prismaErrorWrapper(
+    res,
+    async () =>
+      await prisma.value.create({
+        data: {
+          value: req.body.value,
+          asset: { connect: { id: Number(req.params.assetId) } },
+          user: { connect: { id: 1 } },
+        },
+      })
+  );
 });
+
+const prismaErrorWrapper = async <T>(
+  res: Response,
+  callback: () => Promise<T>
+) => {
+  try {
+    res.send(await callback());
+  } catch (e) {
+    if (e instanceof PrismaClientRustPanicError) {
+      res.status(400).json({ status: "error", stack: e.stack });
+    }
+    res.status(400).json({ status: "error" });
+  }
+};

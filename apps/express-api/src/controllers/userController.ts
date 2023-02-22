@@ -21,8 +21,23 @@ userController.post("/", async (req, res) => {
 userController.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const user = await prisma.user.findUnique({ where: { id: Number(id) } });
-    res.send(user);
+    const [user, portfolioTotal] = await prisma.$transaction([
+      prisma.user.findUnique({
+        where: { id: Number(id) },
+        include: {
+          assets: { include: { values: { orderBy: { createdAt: "desc" } } } },
+        },
+      }),
+      prisma.value.aggregate({
+        _sum: {
+          value: true,
+        },
+        where: {
+          userId: Number(id),
+        },
+      }),
+    ]);
+    res.send({ user, totalValue: portfolioTotal });
   } catch (e) {
     res.status(400).json(e);
   }
