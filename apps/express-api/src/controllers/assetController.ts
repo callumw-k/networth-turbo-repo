@@ -1,6 +1,6 @@
 import { PrismaClientRustPanicError } from "@prisma/client/runtime/index.js";
 import { Request, Response, Router } from "express";
-import { postAssetDTO } from "express-schema";
+import { postAssetDTO, updateAssetDTO } from "express-schema";
 import { prisma } from "../services/prismaClient.js";
 export const assetController = Router();
 
@@ -48,30 +48,46 @@ assetController.post(
 
 assetController.get("/:assetId", async (req, res) => {
   const { assetId } = req.params;
-  await prismaErrorWrapper(res, async () => {
-    return await prisma.asset.findUnique({
-      where: { id: Number(assetId) },
-      include: {
-        values: {
-          orderBy: [{ createdAt: "desc" }],
+  try {
+    await prismaErrorWrapper(res, async () => {
+      return await prisma.asset.findUnique({
+        where: { id: Number(assetId) },
+        include: {
+          values: {
+            orderBy: [{ createdAt: "desc" }],
+          },
         },
-      },
+      });
     });
-  });
+  } catch (e) {
+    res.status(400);
+  }
 });
 
 assetController.put("/:assetId", async (req, res) => {
-  await prismaErrorWrapper(
-    res,
-    async () =>
-      await prisma.value.create({
-        data: {
-          value: req.body.value,
-          asset: { connect: { id: Number(req.params.assetId) } },
-          user: { connect: { id: 1 } },
-        },
-      })
-  );
+  try {
+    console.debug(req.body);
+    console.debug(typeof req.body.value, typeof req.body.userId);
+    const parsedData = updateAssetDTO.parse(req.body);
+    await prismaErrorWrapper(
+      res,
+      async () =>
+        await prisma.value.create({
+          data: {
+            value: parsedData.value,
+            asset: { connect: { id: Number(req.params.assetId) } },
+            user: { connect: { id: parsedData.userId } },
+          },
+        })
+    );
+  } catch (e) {
+    res.status(400);
+    res.send({
+      status: "error",
+      error: "Error updating asset",
+      message: (e as Error).message,
+    });
+  }
 });
 
 const prismaErrorWrapper = async <T>(

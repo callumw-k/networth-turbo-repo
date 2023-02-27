@@ -21,23 +21,19 @@ userController.post("/", async (req, res) => {
 userController.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const [user, portfolioTotal] = await prisma.$transaction([
-      prisma.user.findUnique({
-        where: { id: Number(id) },
-        include: {
-          assets: { include: { values: { orderBy: { createdAt: "desc" } } } },
+    const user = await prisma.user.findUnique({
+      where: { id: Number(id) },
+      include: {
+        assets: {
+          include: { values: { orderBy: { createdAt: "desc" }, take: 5 } },
         },
-      }),
-      prisma.value.aggregate({
-        _sum: {
-          value: true,
-        },
-        where: {
-          userId: Number(id),
-        },
-      }),
-    ]);
-    res.send({ user, totalValue: portfolioTotal });
+      },
+    });
+    if (user) {
+      res.send({ user });
+      return;
+    }
+    res.status(400).json({ error: "User not found" });
   } catch (e) {
     res.status(400).json(e);
   }
